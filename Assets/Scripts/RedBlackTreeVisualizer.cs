@@ -10,15 +10,21 @@ using UnityEngine.Serialization;
 
 public class RedBlackTreeVisualizer : MonoBehaviour
 {
+    private class Line
+    {
+        public LineRenderer lineRenderer;
+        public GameObject startPoint;
+        public GameObject endPoint;
+    }
+    
     public Button insertButton;
-    public Button deleteButton;
     public TMPro.TMP_InputField inputField;
     public Transform nodeContainer;
     
     public GameObject nodePrefab;
-    public LineRenderer edge;
+    public LineRenderer edgePrefab;
 
-    private List<LineRenderer> edges = new List<LineRenderer>();
+    private List<Line> edges = new List<Line>();
     
     // for making tree
     public Node root;
@@ -32,7 +38,6 @@ public class RedBlackTreeVisualizer : MonoBehaviour
     void Start()
     {
         insertButton.onClick.AddListener(ClickInsertButton);
-        deleteButton.onClick.AddListener(ClickDeleteButton);
     }
 
     private void ClickInsertButton()
@@ -44,13 +49,10 @@ public class RedBlackTreeVisualizer : MonoBehaviour
         }
     }
 
-    private void ClickDeleteButton()
-    {
-        
-    }
-
     IEnumerator UpdateVisualizer(Node root)
     {
+        SetLine();
+
         float time = 0.0f;
         float lerptime = 0.3f;
 
@@ -59,7 +61,7 @@ public class RedBlackTreeVisualizer : MonoBehaviour
             n.prevPosition = n.newPosition;
         }
 
-        ColorUpdate();
+        StartCoroutine(ColorUpdate());
         CalculatePosition(root);
         
         while (time < lerptime)
@@ -70,21 +72,46 @@ public class RedBlackTreeVisualizer : MonoBehaviour
                 Vector3 newPosition = n.newPosition;
                 n.obj.transform.localPosition = Vector3.Lerp(prevPosition, newPosition, time/lerptime);
             }
+            UpdateLine();
             time += Time.deltaTime;
             yield return null;
         }
         foreach (Node n in nodes)
         {
             n.obj.transform.localPosition = n.newPosition;
+            UpdateLine();
         }
         
     }
 
-    private void UpdateLine(Node n)
+    private void SetLine()
     {
         for (int i = 0; i < edges.Count; i++)
         {
-            
+            Destroy(edges[i].lineRenderer.gameObject);
+        }
+        edges.Clear();
+
+        foreach (var node in nodes)
+        {
+            if (node.parent != null)
+            {
+                Line line = new Line();
+                line.lineRenderer = Instantiate(edgePrefab, nodeContainer).GetComponent<LineRenderer>();
+                line.startPoint = node.obj;
+                line.endPoint = node.parent.obj;
+                line.lineRenderer.positionCount = 2;
+                edges.Add(line);
+            }
+        }
+    }
+    
+    private void UpdateLine()
+    {
+        foreach (var edge in edges)
+        {
+            edge.lineRenderer.SetPosition(0, edge.startPoint.transform.localPosition);
+            edge.lineRenderer.SetPosition(1, edge.endPoint.transform.localPosition);
         }
     }
 
@@ -114,8 +141,31 @@ public class RedBlackTreeVisualizer : MonoBehaviour
         CalculatePosition(n.right, depth + 1);
     }
 
-    private void ColorUpdate()
-    {
+    IEnumerator ColorUpdate()
+    {        
+        List<Color> prevColors = new List<Color>();
+        foreach (Node n in nodes)
+        {
+            prevColors.Add(n.obj.GetComponent<MeshRenderer>().material.color);
+        }
+        
+        float time = 0.0f;
+        float lerptime = 0.2f;
+
+        while (time < lerptime)
+        {
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                Node n = nodes[i];
+                if (n.color == NodeColor.Black) n.obj.GetComponent<Renderer>().material.color = 
+                    Color.Lerp(prevColors[i], Color.black, time/lerptime);
+                else n.obj.GetComponent<Renderer>().material.color = 
+                    Color.Lerp(prevColors[i], Color.red, time/lerptime);
+            }
+            time += Time.deltaTime;
+            yield return null;
+        }
+
         foreach (Node n in nodes)
         {
             if (n.color == NodeColor.Black) n.obj.GetComponent<Renderer>().material.color = Color.black;
@@ -274,7 +324,7 @@ public class RedBlackTreeVisualizer : MonoBehaviour
 
         // 조건 2: 루트는 항상 Black
         root.color = NodeColor.Black;
-        ColorUpdate();
+        StartCoroutine(ColorUpdate());
     }
 
     void Update()
